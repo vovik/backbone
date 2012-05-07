@@ -1,17 +1,12 @@
 $(document).ready(function() {
 
-  module("Backbone.sync", {setup : function() {
-    window.lastRequest = null;
-    $.ajax = function(obj) {
-      lastRequest = obj;
-    };
-  }});
+  var ajax = Backbone.ajax;
+  var lastRequest = null;
 
   var Library = Backbone.Collection.extend({
     url : function() { return '/library'; }
   });
-
-  var library = new Library();
+  var library;
 
   var attrs = {
     title  : "The Tempest",
@@ -19,8 +14,23 @@ $(document).ready(function() {
     length : 123
   };
 
+  module("Backbone.sync", {
+
+    setup : function() {
+      library = new Library();
+      Backbone.ajax = function(obj) {
+        lastRequest = obj;
+      };
+      library.create(attrs, {wait: false});
+    },
+
+    teardown: function() {
+      Backbone.ajax = ajax;
+    }
+
+  });
+
   test("sync: read", function() {
-    Backbone.sync = originalSync;
     library.fetch();
     equal(lastRequest.url, '/library');
     equal(lastRequest.type, 'GET');
@@ -36,7 +46,6 @@ $(document).ready(function() {
   });
 
   test("sync: create", function() {
-    library.create(attrs, {wait: false});
     equal(lastRequest.url, '/library');
     equal(lastRequest.type, 'POST');
     equal(lastRequest.dataType, 'json');
@@ -99,6 +108,7 @@ $(document).ready(function() {
   });
 
   test("sync: read model", function() {
+    library.first().save({id: '2-the-tempest', author: 'Tim Shakespeare'});
     library.first().fetch();
     equal(lastRequest.url, '/library/2-the-tempest');
     equal(lastRequest.type, 'GET');
@@ -106,6 +116,7 @@ $(document).ready(function() {
   });
 
   test("sync: destroy", function() {
+    library.first().save({id: '2-the-tempest', author: 'Tim Shakespeare'});
     library.first().destroy({wait: true});
     equal(lastRequest.url, '/library/2-the-tempest');
     equal(lastRequest.type, 'DELETE');
@@ -113,6 +124,7 @@ $(document).ready(function() {
   });
 
   test("sync: destroy with emulateHTTP", function() {
+    library.first().save({id: '2-the-tempest', author: 'Tim Shakespeare'});
     Backbone.emulateHTTP = Backbone.emulateJSON = true;
     library.first().destroy();
     equal(lastRequest.url, '/library/2-the-tempest');
@@ -122,12 +134,27 @@ $(document).ready(function() {
   });
 
   test("sync: urlError", function() {
-    model = new Backbone.Model();
+    var model = new Backbone.Model();
     raises(function() {
       model.fetch();
     });
     model.fetch({url: '/one/two'});
     equal(lastRequest.url, '/one/two');
+  });
+
+  test("#1052 - `options` is optional.", 0, function() {
+    var model = new Backbone.Model();
+    model.url = '/test';
+    Backbone.sync('create', model);
+  });
+
+  test("Backbone.ajax", 1, function() {
+    Backbone.ajax = function(settings){
+      strictEqual(settings.url, '/test');
+    };
+    var model = new Backbone.Model();
+    model.url = '/test';
+    Backbone.sync('create', model);
   });
 
 });
